@@ -74,6 +74,13 @@
 // Modifications are tagged with "isaacs"
 // **************************************************
 
+// **************************************************
+// DogFeet Flavored Markdown by Changwoo Park
+// http://github.com/pismute/dogfeet-flavored-markdown/
+//
+// Modifications are tagged with "DFM"
+// **************************************************
+
 //
 // Showdown namespace
 //
@@ -85,18 +92,84 @@ var Showdown = {};
 if (typeof exports === "object") {
   Showdown = exports;
   // isaacs: expose top-level parse() method, like other to-html parsers.
-  Showdown.parse = function (md, gh) {
+  Showdown.parse = function (md, opts) {
     var converter = new Showdown.converter();
-    return converter.makeHtml(md, gh);
+    return converter.makeHtml(md, opts);
   };
 }
 
-//
-// isaacs: Declare "GitHub" object in here, since Node modules
-// execute in a closure or separate context, rather than right
-// in the global scope.  If in the browser, this does nothing.
-//
-var GitHub;
+// ** DFM **
+var _keepBlock = function(text, render) {
+  var i, _len;
+
+  var ret=[];
+  var word=[];
+  var tag=[];
+  var tagIn=false;
+  var codeIn=false;
+  for (i = 0, _len = text.length; i < _len; i++) {
+    var c= text.charAt(i);
+
+    if( '<' === c ) {
+      tagIn=true;
+      tag=[];
+
+      if( word.length > 0 ) {
+        ret.push( render( word.join('') ) );
+      }
+      word=[];
+    }
+
+    //buffer tag
+    if( tagIn ) { tag.push(c); }
+
+    //keep tag block(<>) or code block(<code></code>)
+    if( tagIn || codeIn ) { ret.push( c ); }
+    else { word.push( c ) }
+
+    if( '>' === c ) {
+      tagIn=false;
+
+      var codeTag = tag.join('');
+      if( '<code>' === codeTag ) {
+        codeIn=true;
+      }
+
+      if( '</code>' === codeTag ) {
+        codeIn=false;
+      }
+    }
+  }
+
+  return ret.join('');
+}
+
+// ** DFM ** default renderer
+var DogFeet = {
+  '@': function( key ) {
+    return ['<a href="https://twitter.com/#!/', key, '">@', key, '</a>'].join('');
+  }
+  , '#': function( key ) {
+    return ['<a href="https://twitter.com/#!/search/%23', key, '">#', key, '</a>'].join('');
+  }
+}
+
+function _DoDFM(text){
+  var at = DogFeet[ '@' ];
+  var hash = DogFeet[ '#' ];
+
+  // ** DFM ** Auto-link @mention if g_opts.templates.@ is defined
+  text = text.replace(/(^|[ \t]+)@([ㄱ-ㅎ가-힣a-zA-Z0-9]+)/ig, function(wholeMatch, head, body, matchIndex){
+    return [head, at(body) ].join('');
+  });
+
+  // ** DFM ** Auto-link #hash if g_opts.templates.# is defined
+  text = text.replace(/(^|[ \t]+)#([ㄱ-ㅎ가-힣a-zA-Z0-9]+)/ig, function(wholeMatch, head, body, matchIndex){
+    return [head, hash(body) ].join('');
+  });
+
+  return text;
+}
 
 //
 // converter
@@ -119,11 +192,10 @@ var g_html_blocks;
 // (see _ProcessListItems() for details):
 var g_list_level = 0;
 
-// isaacs - Allow passing in the GitHub object as an argument.
-this.makeHtml = function(text, gh) {
-  if (typeof gh !== "undefined") {
-    if (typeof gh === "string") gh = {nameWithOwner:gh};
-    GitHub = gh;
+this.makeHtml = function(text, opts) {
+  if( opts && opts.templates ) {
+    DogFeet[ '@' ] = opts.templates[ '@' ] || DogFeet[ '@' ];
+    DogFeet[ '#' ] = opts.templates[ '#' ] || DogFeet[ '#' ];
   }
 
 //
@@ -192,43 +264,9 @@ this.makeHtml = function(text, gh) {
   });
   text = text.replace(/[a-z0-9_\-+=.]+@[a-z0-9\-]+(\.[a-z0-9-]+)+/ig, function(wholeMatch){return "<a href='mailto:" + wholeMatch + "'>" + wholeMatch + "</a>";});
 
-  // ** GFM ** Auto-link sha1 if GitHub.nameWithOwner is defined
-  text = text.replace(/[a-f0-9]{40}/ig, function(wholeMatch,matchIndex){
-    if (typeof(GitHub) == "undefined" || typeof(GitHub.nameWithOwner) == "undefined") {return wholeMatch;}
-    var left = text.slice(0, matchIndex), right = text.slice(matchIndex)
-    if (left.match(/@$/) || (left.match(/<[^>]+$/) && right.match(/^[^>]*>/))) {return wholeMatch;}
-    return "<a href='http://github.com/" + GitHub.nameWithOwner + "/commit/" + wholeMatch + "'>" + wholeMatch.substring(0,7) + "</a>";
-  });
-
-  // ** GFM ** Auto-link user@sha1 if GitHub.nameWithOwner is defined
-  text = text.replace(/([a-z0-9_\-+=.]+)@([a-f0-9]{40})/ig, function(wholeMatch,username,sha,matchIndex){
-    if (typeof(GitHub) == "undefined" || typeof(GitHub.nameWithOwner) == "undefined") {return wholeMatch;}
-    GitHub.repoName = GitHub.repoName || _GetRepoName()
-    var left = text.slice(0, matchIndex), right = text.slice(matchIndex)
-    if (left.match(/\/$/) || (left.match(/<[^>]+$/) && right.match(/^[^>]*>/))) {return wholeMatch;}
-    return "<a href='http://github.com/" + username + "/" + GitHub.repoName + "/commit/" + sha + "'>" + username + "@" + sha.substring(0,7) + "</a>";
-  });
-
   // ** GFM ** Auto-link user/repo@sha1
   text = text.replace(/([a-z0-9_\-+=.]+\/[a-z0-9_\-+=.]+)@([a-f0-9]{40})/ig, function(wholeMatch,repo,sha){
     return "<a href='http://github.com/" + repo + "/commit/" + sha + "'>" + repo + "@" + sha.substring(0,7) + "</a>";
-  });
-
-  // ** GFM ** Auto-link #issue if GitHub.nameWithOwner is defined
-  text = text.replace(/#([0-9]+)/ig, function(wholeMatch,issue,matchIndex){
-    if (typeof(GitHub) == "undefined" || typeof(GitHub.nameWithOwner) == "undefined") {return wholeMatch;}
-    var left = text.slice(0, matchIndex), right = text.slice(matchIndex)
-    if (left == "" || left.match(/[a-z0-9_\-+=.]$/) || (left.match(/<[^>]+$/) && right.match(/^[^>]*>/))) {return wholeMatch;}
-    return "<a href='http://github.com/" + GitHub.nameWithOwner + "/issues/#issue/" + issue + "'>" + wholeMatch + "</a>";
-  });
-
-  // ** GFM ** Auto-link user#issue if GitHub.nameWithOwner is defined
-  text = text.replace(/([a-z0-9_\-+=.]+)#([0-9]+)/ig, function(wholeMatch,username,issue,matchIndex){
-    if (typeof(GitHub) == "undefined" || typeof(GitHub.nameWithOwner) == "undefined") {return wholeMatch;}
-    GitHub.repoName = GitHub.repoName || _GetRepoName()
-    var left = text.slice(0, matchIndex), right = text.slice(matchIndex)
-    if (left.match(/\/$/) || (left.match(/<[^>]+$/) && right.match(/^[^>]*>/))) {return wholeMatch;}
-    return "<a href='http://github.com/" + username + "/" + GitHub.repoName + "/issues/#issue/" + issue + "'>" + wholeMatch + "</a>";
   });
 
   // ** GFM ** Auto-link user/repo#issue
@@ -236,12 +274,10 @@ this.makeHtml = function(text, gh) {
     return "<a href='http://github.com/" + repo + "/issues/#issue/" + issue + "'>" + wholeMatch + "</a>";
   });
 
+  // ** DFM **
+  text = _keepBlock(text, _DoDFM);
+
 	return text;
-}
-
-
-var _GetRepoName = function() {
-  return GitHub.nameWithOwner.match(/^.+\/(.+)$/)[1]
 }
 
 var _StripLinkDefinitions = function(text) {
