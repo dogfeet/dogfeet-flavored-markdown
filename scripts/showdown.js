@@ -171,6 +171,34 @@ function _DoDFM(text){
   return text;
 }
 
+/**
+ * ```scala code block``` => '<pre><code class="classname">code block</code></pre>'
+ * '''scala span block''' => '<span class="classname">code block</span>'
+ */
+var _DoMultiLineDFM = function(text) {
+    text = text.replace(/(^```)([a-zA-Z0-9\-]+)\n([^`{3}]*)(^```\n)/gm,
+        function(wholeMatch,m1,m2,m3,m4) {
+            var cls = m2.trim();
+            var c = m3;
+            c = c.replace(/^([ \t]*)/g,""); // leading whitespace
+            c = c.replace(/[ \t]*$/g,"");   // trailing whitespace
+
+            return ['<pre><code class="dfm ', cls, '">', c, '</code></pre>\n'].join('');
+    });
+
+    text = text.replace(/(^''')([a-zA-Z0-9\-]+)\n([^'{3}]*)(^'''\n)/gm,
+        function(wholeMatch,m1,m2,m3,m4) {
+            var cls = m2.trim();
+            var c = m3;
+            c = c.replace(/^([ \t]*)/g,""); // leading whitespace
+            c = c.replace(/[ \t]*$/g,"");   // trailing whitespace
+
+            return ['<span class="dfm ', cls, '">', c, '</span>\n'].join('');
+    });
+
+    return text;
+}
+
 //
 // converter
 //
@@ -484,6 +512,10 @@ var _RunBlockGamut = function(text) {
 	text = text.replace(/^[ ]{0,2}([ ]?\_[ ]?){3,}[ \t]*$/gm,key);
 
 	text = _DoLists(text);
+
+	// DFM multiline block
+	text = _DoMultiLineDFM(text);
+
 	text = _DoCodeBlocks(text);
 	text = _DoBlockQuotes(text);
 
