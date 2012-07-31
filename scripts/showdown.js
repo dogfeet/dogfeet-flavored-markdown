@@ -159,7 +159,7 @@ function _DoDFM(text){
   var hash = DogFeet[ '#' ];
 
   // ** DFM ** Auto-link @mention if g_opts.templates.@ is defined
-  text = text.replace(/(^|[ \t]+)@([ㄱ-ㅎ가-힣a-zA-Z0-9]+)/ig, function(wholeMatch, head, body, matchIndex){
+  text = text.replace(/(^|[ \t]+)@([a-zA-Z0-9]+)/ig, function(wholeMatch, head, body, matchIndex){
     return [head, at(body) ].join('');
   });
 
