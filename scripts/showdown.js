@@ -147,7 +147,7 @@ var _keepBlock = function(text, render) {
 // ** DFM ** default renderer
 var DogFeet = {
   '@': function( key ) {
-    return ['<a href="https://twitter.com/#!/', key, '">@', key, '</a>'].join('');
+    return ['<a href="https://twitter.com/', key, '">@', key, '</a>'].join('');
   }
   , '#': function( key ) {
     return ['<a href="https://twitter.com/#!/search/%23', key, '">#', key, '</a>'].join('');
